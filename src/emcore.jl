@@ -116,6 +116,7 @@ function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100
 			println("free energy: ", round(freeenergy(x,l,h,X,betas,sigma),digits=6))
 			println("change: ", round.(abs.(newparams-oldparams)./oldparams,digits=6))
 			println("max: ", round.(maximum(abs.((newparams-oldparams)./oldparams)),digits=6))
+			flush(stdout)
 
 			opt_rec[opt_ind, 1] = iter
 			opt_rec[opt_ind, 2] = round(freeenergy(x,l,h,X,betas,sigma),digits=6) 
