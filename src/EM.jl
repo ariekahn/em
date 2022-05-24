@@ -10,6 +10,7 @@ using Statistics          # for mean
 using Distributions		  # for tDist
 
 export em,emerrors,lml,ibic,iaic,loocv,qlik,jianlik,seqlik,simq,simseq,simjian
+export EMResultsAbstract,EMResults,EMResultsExtended
 
 include("emcore.jl")
 include("emutils.jl")
