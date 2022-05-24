@@ -1,5 +1,34 @@
 # julia EM model fitting, Nathaniel Daw 12/2021
 
+abstract type EMResultsAbstract end
+
+struct EMResults <: EMResultsAbstract
+    varnames
+    betas
+    sigma
+    x
+    l
+    h
+    opt_rec
+end
+
+struct EMResultsExtended <: EMResultsAbstract
+    varnames
+    betas
+    sigma
+    x
+    l
+    h
+    opt_rec
+    standarderrors
+    pvalues
+    covmtx
+end
+
+function iaic(r::T) where T <: EMResultsAbstract
+    iaic(r.x, r.l, r.h, r.betas, r.sigma)
+end
+
 #### basic fitting routines
 """
     em(data,subs,X,startbetas,startsigma,likfun; optional named arguments)
@@ -60,6 +89,10 @@ function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100
 		@warn "Not running in parallel. Please set JULIA_NUM_THREADS environment variable & restart."
 	end
 
+	# Keep track of optimization for diagnostics
+	opt_rec = zeros(Int(floor(maxiter / 10)) + 1, 3 + 2*length(packparams(betas, sigma)))
+	opt_ind = 1
+
 	while (true)
 		oldparams = newparams
 		estep!(data,subs,x,x,l,h,X,betas,sigma,likfun) 
@@ -83,10 +116,31 @@ function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100
 			println("free energy: ", round(freeenergy(x,l,h,X,betas,sigma),digits=6))
 			println("change: ", round.(abs.(newparams-oldparams)./oldparams,digits=6))
 			println("max: ", round.(maximum(abs.((newparams-oldparams)./oldparams)),digits=6))
+
+			opt_rec[opt_ind, 1] = iter
+			opt_rec[opt_ind, 2] = round(freeenergy(x,l,h,X,betas,sigma),digits=6) 
+			opt_rec[opt_ind, 3] = round.(maximum(abs.((newparams-oldparams)./oldparams)),digits=6)
+			opt_rec[opt_ind, 4:3+length(newparams)] = round.(abs.(newparams-oldparams)./oldparams,digits=6)
+			opt_rec[opt_ind, 4+length(newparams):end] = round.(newparams, digits=2)
+			opt_ind += 1
 		end	
 
 		if done
-			return(betas,sigma,x,l,h)
+			col_names = ["Iter", "FreeEnergy", "MaxChange"]
+			for i = 1:length(betas)
+				push!(col_names, "δβ$(i)")
+			end
+			for i = 1:(length(newparams)-length(betas))
+				push!(col_names, "δσ$(i)")
+			end
+			for i = 1:length(betas)
+				push!(col_names, "β$(i)")
+			end
+			for i = 1:(length(newparams)-length(betas))
+				push!(col_names, "σ$(i)")
+			end
+			opt_rec_df = DataFrame(opt_rec[1:opt_ind-1, :], col_names)
+			return (betas,sigma,x,l,h,opt_rec_df)
 		end
 	end
 end
@@ -245,6 +299,14 @@ function emerrors(data,subs,x,X,h,betas,sigma,likfun)
 	#pvalues = 2*ccdf.(Normal(0,1),abs.(vec(betas')) ./ ses)
 
 	return (ses,pvalues,covmtx)
+end
+
+function emerrors(data,subs,X,likfun,results)
+	(ses,pvalues,covmtx) = emerrors(data, subs, results.x, X, results.h, results.betas, results.sigma, likfun)
+	return EMResultsExtended(
+		results.varnames, results.betas, results.sigma,
+		results.x, results.l, results.h, results.opt_rec,
+		ses, pvalues, covmtx)
 end
 
 function mobj(x,X,h,betas,sigma,nparam)
@@ -431,7 +493,7 @@ function loocv(data,subs,startx,X,betas,sigma,likfun;emtol=1e-3, full=false, max
 		end
 
 		try
-			(newbetas,newsigma,~,~,~) = em(data,loosubs,looX,betas,sigma,likfun; emtol=emtol, startx=loostartx, full=full, maxiter=maxiter, quiet=true)
+			(newbetas,newsigma,~,~,~,~) = em(data,loosubs,looX,betas,sigma,likfun; emtol=emtol, startx=loostartx, full=full, maxiter=maxiter, quiet=true)
 			newmu = newbetas' * X[i,:]
 
 			liks[i] = heldoutsubject_laplace(newmu,newsigma,data[data[:,:sub] .== sub,:],likfun;startx = startx[i,:])
