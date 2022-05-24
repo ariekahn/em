@@ -93,9 +93,12 @@ function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100
 	opt_rec = zeros(Int(floor(maxiter / 10)) + 1, 3 + 2*length(packparams(betas, sigma)))
 	opt_ind = 1
 
+	# Convert to Table to allow better optimization of likelihood fn
+	tables = [Tables.columntable(view(data,data.sub .== subs[i] ,:)) for i in 1:nsub]
+
 	while (true)
 		oldparams = newparams
-		estep!(data,subs,x,x,l,h,X,betas,sigma,likfun) 
+		estep!(tables,subs,x,x,l,h,X,betas,sigma,likfun) 
 		(betas, sigma) = mstep(x,X,h,sigma)
 
 		newparams = packparams(betas,sigma)
@@ -188,9 +191,7 @@ function estep!(data,subs,startx,x,l,h,X,betas,sigma,likfun)
 	nparam = size(mus,2)
 		
 	Threads.@threads for i = 1:nsub
-		sub = subs[i];
-
-		fitfun = (x) -> gaussianprior(x,mus[i,:],sigma,view(data,data.sub .== sub,:),likfun)
+		fitfun = (x) -> gaussianprior(x,mus[i,:],sigma,data[i],likfun)
 
 		(l[i], x[i,:]) = optimizesubject(fitfun, startx[i,:]);		
 		hess = y -> ForwardDiff.hessian(fitfun, y);
