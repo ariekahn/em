@@ -175,7 +175,7 @@ function eminits(data,subs,X,betas,sigma::Vector,likfun;nstarts=10)
 				x[i,:] = xx
 			end
 		end
-	 end
+	end
 	nothing
 
 	return x
