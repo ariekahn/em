@@ -169,10 +169,15 @@ function eminits(data,subs,X,betas,sigma::Vector,likfun;nstarts=10)
 		fitfun = (x) -> gaussianprior(x,(X*betas)[1,:],Diagonal(sigma),view(data,data.sub .== sub,:),likfun)
 
 		for j = 1:nstarts
+			try
 			(ll,xx) = optimizesubject(fitfun, startx[j,:]);		
 			if ll < l[i]
 				l[i] = ll
 				x[i,:] = xx
+			end
+			catch err
+				@warn err
+				@warn "eminits failed to run. Skipping start. Check parameterization."
 			end
 		end
 	end
