@@ -55,15 +55,15 @@ returns `(betas,sigma,x,l,h)`
 - `l`: the per-subject likelihoods
 - `h`: the per-subject inverse Hessians
 """
-function em(data,subs,X,betas,sigma::Vector,likfun; emtol=1e-3, startx = [], maxiter=100, quiet=false, full=false)
+function em(data,subs,X,betas,sigma::Vector,likfun; emtol=1e-3, startx = [], maxiter=100, quiet=false, full=false, threads=true)
 	if full
-		return em(data,subs,X,betas,Matrix(Diagonal(sigma)),likfun; emtol=emtol, startx = startx, maxiter=maxiter, full=full, quiet=quiet)
+		return em(data,subs,X,betas,Matrix(Diagonal(sigma)),likfun; emtol=emtol, startx = startx, maxiter=maxiter, full=full, quiet=quiet, threads=threads)
 	else
-		return em(data,subs,X,betas,Diagonal(sigma),likfun; emtol=emtol, startx = startx, maxiter=maxiter, full=full, quiet=quiet)
+		return em(data,subs,X,betas,Diagonal(sigma),likfun; emtol=emtol, startx = startx, maxiter=maxiter, full=full, quiet=quiet, threads=threads)
 	end
 end
 
-function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100, quiet=false, full=false)
+function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100, quiet=false, full=false, threads=true)
 	nsub = size(X,1)
     nparam = size(betas,2)
 
@@ -85,7 +85,7 @@ function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100
 		x[:,:] = startx
 	end
 
-	if (Threads.nthreads() == 1)
+	if (threads && Threads.nthreads() == 1)
 		@warn "Not running in parallel. Please set JULIA_NUM_THREADS environment variable & restart."
 	end
 
@@ -98,7 +98,11 @@ function em(data,subs,X,betas,sigma,likfun; emtol=1e-3, startx = [], maxiter=100
 
 	while (true)
 		oldparams = newparams
-		estep!(tables,subs,x,x,l,h,X,betas,sigma,likfun) 
+		if threads
+			estep!(tables,subs,x,x,l,h,X,betas,sigma,likfun) 
+		else
+			estep_nothreads!(tables,subs,x,x,l,h,X,betas,sigma,likfun) 
+		end
 		(betas, sigma) = mstep(x,X,h,sigma)
 
 		newparams = packparams(betas,sigma)
@@ -151,7 +155,7 @@ end
 
 # experimental function to generate starting points for em()
 
-function eminits(data,subs,X,betas,sigma::Vector,likfun;nstarts=10)
+function eminits(data,subs,X,betas,sigma::Vector,likfun;nstarts=10,threads=true)
 	nsub = size(X,1)
     nparam = size(betas,2)
 
@@ -170,11 +174,11 @@ function eminits(data,subs,X,betas,sigma::Vector,likfun;nstarts=10)
 
 		for j = 1:nstarts
 			try
-			(ll,xx) = optimizesubject(fitfun, startx[j,:]);		
-			if ll < l[i]
-				l[i] = ll
-				x[i,:] = xx
-			end
+				(ll,xx) = optimizesubject(fitfun, startx[j,:]);		
+				if ll < l[i]
+					l[i] = ll
+					x[i,:] = xx
+				end
 			catch err
 				@warn err
 				@warn "eminits failed to run. Skipping start. Check parameterization."
@@ -196,6 +200,22 @@ function estep!(data,subs,startx,x,l,h,X,betas,sigma,likfun)
 	nparam = size(mus,2)
 		
 	Threads.@threads for i = 1:nsub
+		fitfun = (x) -> gaussianprior(x,mus[i,:],sigma,data[i],likfun)
+
+		(l[i], x[i,:]) = optimizesubject(fitfun, startx[i,:]);		
+		hess = y -> ForwardDiff.hessian(fitfun, y);
+
+		h[:,:,i] = inv(hess(x[i,:]));
+	 end
+	nothing
+end
+
+function estep_nothreads!(data,subs,startx,x,l,h,X,betas,sigma,likfun)
+	nsub = length(subs)
+	mus = X * betas
+	nparam = size(mus,2)
+		
+	for i = 1:nsub
 		fitfun = (x) -> gaussianprior(x,mus[i,:],sigma,data[i],likfun)
 
 		(l[i], x[i,:]) = optimizesubject(fitfun, startx[i,:]);		
