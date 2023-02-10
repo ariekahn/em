@@ -168,9 +168,10 @@ function eminits(data,subs,X,betas,sigma::Vector,likfun;nstarts=10,threads=true)
 		startx[j,:] = rand(MvNormal(vec((X*betas)[1,:]),Diagonal(sigma)))		
 	end
 
+	tables = [Tables.columntable(view(data,data.sub .== subs[i] ,:)) for i in 1:nsub]
+
 	Threads.@threads for i = 1:nsub
-		sub = subs[i];
-		fitfun = (x) -> gaussianprior(x,(X*betas)[1,:],Diagonal(sigma),view(data,data.sub .== sub,:),likfun)
+		fitfun = (x) -> gaussianprior(x,(X*betas)[1,:],Diagonal(sigma),tables[i],likfun)
 
 		for j = 1:nstarts
 			try
