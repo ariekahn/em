@@ -11,6 +11,8 @@ using Distributions		  # for tDist
 
 export em,emerrors,eminits,lml,ibic,iaic,loocv,qlik,jianlik,seqlik,simq,simseq,simjian
 export EMResultsAbstract,EMResults,EMResultsExtended
+export emnoprior
+
 
 include("emcore.jl")
 include("emutils.jl")

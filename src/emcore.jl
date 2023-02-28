@@ -191,6 +191,59 @@ function eminits(data,subs,X,betas,sigma::Vector,likfun;nstarts=10,threads=true)
 	return x
 end
 
+"""
+emnoprior
+
+Computes best-fit parameters, likelihood and inverse hessian of each subject, without a group-level prior
+
+nstarts: If 1, begins at X * betas.
+	If > 1, acts like eminits and normally samples starting parameters around the mean.
+
+returns: (x, l, h)
+"""
+function emnoprior(data,subs,X,betas,sigma::Vector,likfun;nstarts=1)
+	nsub = size(X,1)
+    nparam = size(betas,2)
+
+	x = zeros(nsub,nparam)
+	l = zeros(nsub) .+ Inf
+	h = zeros(nparam,nparam,nsub)
+
+	startx = zeros(nstarts,nparam)
+	if nstarts > 1
+		for j = 1:nstarts
+			startx[j,:] = rand(MvNormal(vec((X*betas)[1,:]),Diagonal(sigma)))		
+		end
+	else
+		startx[1, :] = vec((X*betas)[1,:])
+	end
+
+	tables = [Tables.columntable(view(data,data.sub .== subs[i] ,:)) for i in 1:nsub]
+
+	Threads.@threads for i = 1:nsub
+		fitfun = (x) -> likfun(x, tables[i])
+		if nstarts > 1
+			for j = 1:nstarts
+				try
+					(ll,xx) = optimizesubject(fitfun, startx[j,:]);		
+					if ll < l[i]
+						l[i] = ll
+						x[i,:] = xx
+					end
+				catch err
+					@warn err
+					@warn "emnoprior failed to run. Skipping start. Check parameterization."
+				end
+			end
+		else
+			(l[i], x[i,:]) = optimizesubject(fitfun, startx[1,:]);		
+		end
+		hess = y -> ForwardDiff.hessian(fitfun, y);
+		h[:,:,i] = inv(hess(x[i,:]));
+	end
+
+	return (x, l, h)
+end
 
 
 ### E and M steps
