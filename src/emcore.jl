@@ -587,6 +587,84 @@ function loocv(data,subs,startx,X,betas,sigma,likfun;emtol=1e-3, full=false, max
 	return(liks)
 end
 
+function loocv_singlesubject(data,subs,i,startx,X,betas,sigma,likfun;emtol=1e-3, full=false, maxiter=100)
+	nsub = size(X,1)
+
+	lik = 0
+	
+	print("Subject: ")
+
+	sub = subs[i]
+
+	print(i,"..")
+
+	if (i==1)
+		loosubs = subs[2:end]
+		looX = X[2:end,:]
+		loostartx = startx[2:end,:]
+	elseif (i==nsub)
+		loosubs = subs[1:end-1]
+		looX = X[1:end-1,:]
+		loostartx = startx[1:end-1,:]
+	else
+		loosubs = [subs[1:i-1];subs[i+1:end]]
+		looX = X[[1:i-1;i+1:end],:]
+		loostartx = startx[[1:i-1;i+1:end],:]
+	end
+
+	try
+		(newbetas,newsigma,~,~,~,~) = em(data,loosubs,looX,betas,sigma,likfun; emtol=emtol, startx=loostartx, full=full, maxiter=maxiter, quiet=true)
+		newmu = newbetas' * X[i,:]
+
+		lik = heldoutsubject_laplace(newmu,newsigma,data[data[:,:sub] .== sub,:],likfun;startx = startx[i,:])
+	catch err
+		println(err)
+		lik = NaN
+	end
+
+	return(lik)
+end
+
+function loocv(data,subs,startx,X,betas,sigma,likfun;emtol=1e-3, full=false, maxiter=100)
+	nsub = size(X,1)
+
+	liks = zeros(nsub)
+	
+	print("Subject: ")
+
+	for i = 1:nsub
+		sub = subs[i]
+
+		print(i,"..")
+
+		if (i==1)
+			loosubs = subs[2:end]
+			looX = X[2:end,:]
+			loostartx = startx[2:end,:]
+		elseif (i==nsub)
+			loosubs = subs[1:end-1]
+			looX = X[1:end-1,:]
+			loostartx = startx[1:end-1,:]
+		else
+			loosubs = [subs[1:i-1];subs[i+1:end]]
+			looX = X[[1:i-1;i+1:end],:]
+			loostartx = startx[[1:i-1;i+1:end],:]
+		end
+
+		try
+			(newbetas,newsigma,~,~,~,~) = em(data,loosubs,looX,betas,sigma,likfun; emtol=emtol, startx=loostartx, full=full, maxiter=maxiter, quiet=true)
+			newmu = newbetas' * X[i,:]
+
+			liks[i] = heldoutsubject_laplace(newmu,newsigma,data[data[:,:sub] .== sub,:],likfun;startx = startx[i,:])
+		catch err
+	 		println(err)
+	 		liks[i] = NaN
+	 	end
+	end
+
+	return(liks)
+end
+
 function heldoutsubject_laplace(mu, sigma, data, likfun; startx = mu)
 	nparam = length(mu)
 
