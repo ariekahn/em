@@ -9,7 +9,7 @@ using SpecialFunctions    # for erf
 using Statistics          # for mean
 using Distributions		  # for tDist
 
-export em,emerrors,eminits,lml,ibic,iaic,loocv,qlik,jianlik,seqlik,simq,simseq,simjian
+export em,emerrors,eminits,lml,ibic,iaic,loocv,loocv_singlesubject,qlik,jianlik,seqlik,simq,simseq,simjian
 export EMResultsAbstract,EMResults,EMResultsExtended
 export emnoprior
 
