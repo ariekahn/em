@@ -29,6 +29,10 @@ function iaic(r::T) where T <: EMResultsAbstract
     iaic(r.x, r.l, r.h, r.betas, r.sigma)
 end
 
+function ibic(r::T, ndata) where T <: EMResultsAbstract
+    ibic(r.x, r.l, r.h, r.betas, r.sigma, ndata)
+end
+
 #### basic fitting routines
 """
     em(data,subs,X,startbetas,startsigma,likfun; optional named arguments)
