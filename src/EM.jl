@@ -8,6 +8,7 @@ using StatsFuns           # for logsumexp
 using SpecialFunctions    # for erf
 using Statistics          # for mean
 using Distributions		  # for tDist
+using ADTypes             # for AutoForwardDiff
 
 export em,emerrors,eminits,lml,ibic,iaic,loocv,loocv_singlesubject,qlik,jianlik,seqlik,simq,simseq,simjian
 export EMResultsAbstract,EMResults,EMResultsExtended
